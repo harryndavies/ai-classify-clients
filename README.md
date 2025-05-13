@@ -1,125 +1,86 @@
-# Client Industry Classifier
+Client Industry Classifier
 
-A Node.js script that automatically classifies companies into predefined industry categories using web search data and AI-powered text classification.
+A Node.js script that automatically classifies companies into predefined industry categories using Tavily search API and Ollama LLM inference.
+Overview
+This script takes a list of client companies, performs web searches to gather information about each company, and then uses a local LLM (via Ollama) to classify each company into a single industry category from a predefined list. The results are saved as a CSV file.
+Features
 
-## Overview
+Automatically searches the web for company information using Tavily API
+Uses a local LLM (via Ollama) to analyze company data and classify into industries
+Processes companies in bulk from a CSV input file
+Configurable LLM model selection
+Outputs results to a CSV file with company ID, name, and classified industry
 
-This script:
+Prerequisites
 
-1. Loads a list of clients from a CSV file
-2. Searches the web for information about each client using Tavily's search API
-3. Uses OpenAI's GPT-4 to classify each client into a predefined industry category
-4. Outputs a new CSV file with industry classifications
+Node.js (v14 or higher recommended)
+Ollama running locally or on a remote server
+Tavily API key
 
-## Prerequisites
+Installation
 
-- Node.js (v14 or later recommended)
-- NPM or Yarn
-- API keys for:
-  - OpenAI
-  - Tavily
+Clone this repository or download the script
+Install dependencies:
 
-## Installation
+bashnpm install dotenv @tavily/core axios fs path csvtojson json2csv
 
-1. Clone this repository or download the script
-2. Install dependencies:
+Create a .env file in the project root with the following variables:
 
-```bash
-npm install
-# or
-yarn install
-```
-
-3. Create a `.env` file in the project root with your API keys:
-
-```
-OPENAI_API_KEY=your_openai_api_key_here
 TAVILY_API_KEY=your_tavily_api_key_here
-```
+OLLAMA_API_URL=http://localhost:11434/api/generate  # Change if using a remote Ollama instance
+OLLAMA_MODEL=llama3.2  # Change to your preferred model
+Directory Structure
+Create the following directory and files:
+/data
+  /clients.csv    # Your input clients file
+  /industries.csv # Your list of industry categories
+File Formats
+clients.csv
+Must contain at least these columns:
 
-## Input Data Format
-
-The script requires two CSV files in the `data/` directory:
-
-### `data/clients.csv`
-
-A CSV file containing client information with at least these columns:
-- `id`: A unique identifier for each client
-- `name`: The company name to search for and classify
+id: A unique identifier for each client
+name: The company name to search for and classify
 
 Example:
-```csv
 id,name
-1,Acme Corporation
-2,Globex Industries
-3,Umbrella Corp
-```
-
-### `data/industries.csv`
-
-A CSV file containing the list of allowed industry categories with at least a `name` column:
-
+1,"Acme Corporation"
+2,"Tech Innovations Inc"
+3,"Global Logistics Partners"
+industries.csv
+Must contain a name column with the list of valid industry categories:
 Example:
-```csv
 name
-Technology
-Healthcare
-Finance
-Manufacturing
-Retail
-```
-
-## Usage
-
-Run the script:
-
-```bash
-node classify-clients.js
-```
-
+"Technology"
+"Healthcare"
+"Finance"
+"Manufacturing"
+"Retail"
+"Transportation"
+Usage
+Run the script with:
+bashnode client-classifier.js
 The script will:
-1. Process each client in the input file
-2. Display progress in the console
-3. Generate a `classified_clients.csv` file with the results
 
-## Output
+Load clients and industries from the CSV files
+For each client, search for company information using Tavily
+Pass the company name and search results to Ollama for classification
+Output results to classified_clients.csv in the project root
 
-The script produces a file named `classified_clients.csv` with the following columns:
-- `id`: The original client ID
-- `name`: The original client name
-- `industry`: The classified industry category
+Output
+The script generates a file named classified_clients.csv with the following columns:
 
-Note: Confidence scores are used during classification but not included in the final output file.
+id: The original client ID
+name: The company name
+industry: The classified industry from the predefined list
 
-## Example Console Output
+Customization
 
-```
-→ Looking up Acme Corporation (ID: 1)…
-→ Classifying Acme Corporation…
-✔ [1] Acme Corporation → Manufacturing (92%)
-→ Looking up Globex Industries (ID: 2)…
-→ Classifying Globex Industries…
-✔ [2] Globex Industries → Technology (87%)
-→ Looking up Umbrella Corp (ID: 3)…
-→ Classifying Umbrella Corp…
-✔ [3] Umbrella Corp → Healthcare (95%)
-✅ Written classified_clients.csv (with id, name, industry)
-```
+Change the Ollama model by setting the OLLAMA_MODEL environment variable
+Adjust the Ollama inference parameters in the classifyCompany function
+Modify the prompt template for classification in the same function
 
-## Limitations
+Troubleshooting
 
-- Classification accuracy depends on available web information for each company
-- The script processes companies sequentially, which may be slow for large datasets
-- Only a single industry category is assigned to each company
-
-## Dependencies
-
-- `@tavily/core`: Web search API
-- `axios`: HTTP client for OpenAI API requests 
-- `dotenv`: Environment variable management
-- `csvtojson`: CSV parsing
-- `json2csv`: JSON to CSV conversion
-
-## License
-
-MIT
+"File not found": Ensure your CSV files exist in the correct location
+Ollama API errors: Check that Ollama is running and accessible at the specified URL
+JSON parsing errors: The LLM may not always return properly formatted JSON; the script tries to handle this gracefully

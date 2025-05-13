@@ -8,7 +8,9 @@ const path = require("path");
 const csv = require("csvtojson");
 const { parse } = require("json2csv");
 
-const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
+// Set Ollama endpoint - default is localhost:11434
+const OLLAMA_API_URL = process.env.OLLAMA_API_URL || "http://localhost:11434/api/generate";
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2"; // Default to llama3 if not specified
 
 // helper: turn CSV→JSON
 async function loadCsv(filePath) {
@@ -17,18 +19,18 @@ async function loadCsv(filePath) {
   return csv().fromFile(abs);
 }
 
-// helper: ask ChatGPT to classify one company
+// helper: ask Ollama to classify one company
 async function classifyCompany(name, lookupData, industries) {
   const prompt = `
-We have a single client:
+We have a single client: 
 
-  Name: ${name}
+Name: ${name}
 
-Here is info we found on them (from Tavily/web lookup):
+Here is info we found on them (from Tavily/web lookup): 
+${JSON.stringify(lookupData, null, 2)}
 
-  ${JSON.stringify(lookupData, null, 2)}
-
-Please classify this client into **one** of the following industries (and ONLY one), and give me a confidence percentage (0–100%).  Reply in JSON:
+Please classify this client into **one** of the following industries (and ONLY one), and give me a confidence percentage (0–100%).
+Reply in JSON:
 
 {
   "industry": "<one of the list>",
@@ -37,26 +39,54 @@ Please classify this client into **one** of the following industries (and ONLY o
 
 Allowed industries:
 ${industries.join("\n")}
-  `.trim();
+`.trim();
 
-  const res = await axios.post(
-    OPENAI_API_URL,
-    {
-      model: "gpt-4",
-      messages: [
-        { role: "system", content: "You are a helpful classification assistant." },
-        { role: "user", content: prompt },
-      ],
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
+  try {
+    const res = await axios.post(
+      OLLAMA_API_URL,
+      {
+        model: OLLAMA_MODEL,
+        prompt: prompt,
+        stream: false,
+        // Optional: Adjust these parameters based on your needs
+        temperature: 0.1, // Lower temperature for more deterministic outputs
+        num_predict: 200  // Limit token generation
       },
-    }
-  );
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
-  return JSON.parse(res.data.choices[0].message.content);
+    const responseText = res.data.response;
+    
+    // Extract JSON from the response - Ollama might return additional text
+    // Look for JSON pattern between curly braces
+    const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
+    if (!jsonMatch) {
+      console.warn(`Failed to parse JSON from Ollama response for ${name}. Response: ${responseText}`);
+      // Fallback with a default response
+      return { industry: "Unknown", confidence: 0 };
+    }
+    
+    try {
+      // Try to parse the matched JSON
+      return JSON.parse(jsonMatch[0]);
+    } catch (parseError) {
+      console.warn(`JSON parse error for ${name}: ${parseError.message}`);
+      console.warn(`Raw JSON match: ${jsonMatch[0]}`);
+      // Fallback with a default response
+      return { industry: "Unknown", confidence: 0 };
+    }
+  } catch (error) {
+    console.error(`Ollama API error for ${name}: ${error.message}`);
+    if (error.response) {
+      console.error(`Status: ${error.response.status}, Data: ${JSON.stringify(error.response.data)}`);
+    }
+    // Fallback with a default response
+    return { industry: "Unknown", confidence: 0 };
+  }
 }
 
 async function main() {
@@ -80,7 +110,7 @@ async function main() {
     console.log(`→ Looking up ${name} (ID: ${id})…`);
     const lookupData = await tvly.search(name);
 
-    console.log(`→ Classifying ${name}…`);
+    console.log(`→ Classifying ${name} using Ollama model ${OLLAMA_MODEL}…`);
     const { industry, confidence } = await classifyCompany(name, lookupData, INDUSTRIES);
 
     output.push({ id, name, industry, confidence });
