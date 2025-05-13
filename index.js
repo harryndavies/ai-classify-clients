@@ -10,53 +10,15 @@ const { parse } = require("json2csv");
 
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
-// 1) load your list of industries
-const INDUSTRIES = [
-  "Automotive",
-  "Energy, oil & gas",
-  "Gambling",
-  "Legal",
-  "Religion",
-  "Retail - luxury",
-  "Telecommunications",
-  "Banking",
-  "Engineering",
-  "Gaming",
-  "Retail - apparel",
-  "Manufacturing",
-  "Travel",
-  "Retail - music/film",
-  "Charity",
-  "Events",
-  "Government",
-  "Media",
-  "Retail - beauty",
-  "Retail - other",
-  "Consumer",
-  "Finance",
-  "Healthcare",
-  "Raw materials",
-  "Retail - DIY",
-  "Retail - sports",
-  "Education",
-  "Fast-moving consumer goods (FMCG)",
-  "Food",
-  "Insurance",
-  "Real estate",
-  "Retail - home & garden",
-  "Technology",
-  "Fashion",
-];
-
-// 2) helper: turn CSV→JSON
+// helper: turn CSV→JSON
 async function loadCsv(filePath) {
   const abs = path.resolve(process.cwd(), filePath);
   if (!fs.existsSync(abs)) throw new Error(`File not found: ${abs}`);
   return csv().fromFile(abs);
 }
 
-// 3) helper: ask ChatGPT to classify one company
-async function classifyCompany(name, lookupData) {
+// helper: ask ChatGPT to classify one company
+async function classifyCompany(name, lookupData, industries) {
   const prompt = `
 We have a single client:
 
@@ -74,7 +36,7 @@ Please classify this client into **one** of the following industries (and ONLY o
 }
 
 Allowed industries:
-${INDUSTRIES.join("\n")}
+${industries.join("\n")}
   `.trim();
 
   const res = await axios.post(
@@ -82,10 +44,7 @@ ${INDUSTRIES.join("\n")}
     {
       model: "gpt-4",
       messages: [
-        {
-          role: "system",
-          content: "You are a helpful classification assistant.",
-        },
+        { role: "system", content: "You are a helpful classification assistant." },
         { role: "user", content: prompt },
       ],
     },
@@ -101,34 +60,42 @@ ${INDUSTRIES.join("\n")}
 }
 
 async function main() {
-  const [question, csvPath] = process.argv.slice(2);
-  if (!csvPath) {
-    console.error("Usage: node classify.js path/to/clients.csv");
-    process.exit(1);
-  }
-  const clients = await loadCsv(csvPath);
+  // 1) load clients and industries CSVs
+  //    clients.csv must have `id` and `name` columns
+  const clients = await loadCsv("data/clients.csv");
+  //    industries.csv must have a `name` column
+  const industriesCsv = await loadCsv("data/industries.csv");
+  const INDUSTRIES = industriesCsv.map(row => row.name);
 
   const tvly = tavily({ apiKey: process.env.TAVILY_API_KEY });
   const output = [];
 
-  for (const { name } of clients) {
-    console.log(`→ Looking up ${name}…`);
+  for (const row of clients) {
+    const { id, name } = row;
+    if (!id || !name) {
+      console.warn(`Skipping row with missing id or name: ${JSON.stringify(row)}`);
+      continue;
+    }
+
+    console.log(`→ Looking up ${name} (ID: ${id})…`);
     const lookupData = await tvly.search(name);
 
     console.log(`→ Classifying ${name}…`);
-    const { industry, confidence } = await classifyCompany(name, lookupData);
+    const { industry, confidence } = await classifyCompany(name, lookupData, INDUSTRIES);
 
-    output.push({ name, industry, confidence });
-    console.log(`✔ ${name} → ${industry} (${confidence}%)`);
+    output.push({ id, name, industry, confidence });
+    console.log(`✔ [${id}] ${name} → ${industry} (${confidence}%)`);
   }
 
-  // write out new CSV
-  const csvOut = parse(output, { fields: ["name", "industry", "confidence"] });
+  // 2) write out new CSV, preserving id and name
+  const csvOut = parse(output, {
+    fields: ["id", "name", "industry"]
+  });
   fs.writeFileSync("classified_clients.csv", csvOut, "utf8");
-  console.log("✅ Written classified_clients.csv");
+  console.log("✅ Written classified_clients.csv (with id, name, industry)");
 }
 
-main().catch((err) => {
-  console.error(err);
+main().catch(err => {
+  console.error("Error:", err.message || err);
   process.exit(1);
 });
