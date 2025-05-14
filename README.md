@@ -76,14 +76,14 @@ Must include:
 
 Must include:
 
-| name           |
-|----------------|
-| "Technology"   |
-| "Healthcare"   |
-| "Finance"      |
-| "Manufacturing"|
-| "Retail"       |
-| "Transportation"|
+| id | name                  |
+|----|-----------------------|
+| 1  | "Technology"          |
+| 2  | "Healthcare"          |
+| 3  | "Finance"             |
+| 4  | "Manufacturing"       |
+| 5  | "Retail"              |
+| 6  | "Transportation"      |
 
 ---
 
@@ -107,11 +107,11 @@ The script will:
 
 The result file `classified_clients.csv` will contain:
 
-| id | name                      | industry       |
-|----|---------------------------|----------------|
-| 1  | Acme Corporation          | Manufacturing  |
-| 2  | Tech Innovations Inc      | Technology     |
-| 3  | Global Logistics Partners | Transportation |
+| id | name                      | industry_id       | industry       | confidence |
+|----|---------------------------|-------------------|----------------|------------|
+| 1  | Acme Corporation          | 4                 | Manufacturing  | 80         |
+| 2  | Tech Innovations Inc      | 1                 | Technology     | 95         |
+| 3  | Global Logistics Partners | 6                 | Transportation | 75         |
 
 ---
 
