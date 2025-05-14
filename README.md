@@ -1,6 +1,6 @@
 # 📊 Client Industry Classifier
 
-A **Node.js** script that automatically classifies companies into predefined industry categories using the **Tavily Search API** and **Ollama** for local LLM inference.
+A **Node.js** script that automatically classifies companies into predefined industry categories using the **Tavily Search API** and **OpenAI** for LLM inference.
 
 ---
 
@@ -8,7 +8,7 @@ A **Node.js** script that automatically classifies companies into predefined ind
 
 This script processes a list of client companies by:
 - Performing web searches to gather information (via **Tavily API**)
-- Using a **local LLM** (via **Ollama**) to classify each company into a single industry category from a predefined list
+- Using **OpenAI** to classify each company into a single industry category from a predefined list
 - Saving the results into a CSV file
 
 ---
@@ -16,7 +16,7 @@ This script processes a list of client companies by:
 ## ✨ Features
 
 - 🔍 Searches the web for company info using Tavily
-- 🤖 Classifies companies with a local LLM via Ollama
+- 🤖 Classifies companies with a local LLM via OpenAI
 - 📂 Processes client data in bulk from a CSV file
 - ⚙️ Configurable LLM model selection
 - 📄 Outputs classification results to a CSV file
@@ -26,7 +26,7 @@ This script processes a list of client companies by:
 ## 🔧 Prerequisites
 
 - Node.js (v14 or higher)
-- **Ollama** running locally or remotely
+- **OpenAI** API key
 - A valid **Tavily API key**
 
 ---
@@ -44,8 +44,7 @@ This script processes a list of client companies by:
 
    ```env
    TAVILY_API_KEY=your_tavily_api_key_here
-   OLLAMA_API_URL=http://localhost:11434/api/generate  # Adjust if using a remote Ollama instance
-   OLLAMA_MODEL=llama3.2  # Set to your preferred model
+   OPENAI_API_KEY=your_openai_api_key_here
    ```
 
 ---
@@ -56,6 +55,7 @@ This script processes a list of client companies by:
 /data
   ├── clients.csv      # Input file: list of client companies
   └── industries.csv   # Input file: list of valid industry categories
+  └── classified_clients.csv   # Output file: list of client companies with industry classification
 ```
 
 ---
@@ -98,7 +98,7 @@ node client-classifier.js
 The script will:
 1. Load clients and industries from CSV files
 2. Search for company info using Tavily
-3. Classify the company with Ollama
+3. Classify the company with OpenAI
 4. Output results to `classified_clients.csv`
 
 ---
@@ -117,8 +117,7 @@ The result file `classified_clients.csv` will contain:
 
 ## ⚙️ Customization
 
-- 🔁 Change the Ollama model using the `OLLAMA_MODEL` variable in `.env`
-- 🛠 Modify LLM parameters or prompts inside the `classifyCompany` function for fine-tuning behavior
+-  Modify LLM parameters or prompts inside the `classifyCompany` function for fine-tuning behavior
 
 ---
 
@@ -127,7 +126,6 @@ The result file `classified_clients.csv` will contain:
 | Issue              | Solution                                          |
 |--------------------|---------------------------------------------------|
 | File not found     | Ensure `clients.csv` and `industries.csv` exist  |
-| Ollama API errors  | Make sure Ollama is running at the correct URL   |
 | JSON parsing error | Script includes basic handling for bad responses |
 
 ---

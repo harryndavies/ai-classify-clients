@@ -7,10 +7,15 @@ const fs = require("fs");
 const path = require("path");
 const csv = require("csvtojson");
 const { parse } = require("json2csv");
+const { OpenAI } = require("openai");
 
-// Set Ollama endpoint - default is localhost:11434
-const OLLAMA_API_URL = process.env.OLLAMA_API_URL || "http://localhost:11434/api/generate";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.2"; // Default to llama3 if not specified
+// Initialize OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// Set OpenAI model - default to a GPT model
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-3.5-turbo"; 
 
 // helper: turn CSV→JSON
 async function loadCsv(filePath) {
@@ -19,7 +24,7 @@ async function loadCsv(filePath) {
   return csv().fromFile(abs);
 }
 
-// helper: ask Ollama to classify one company
+// helper: ask OpenAI to classify one company
 async function classifyCompany(name, lookupData, industries) {
   const prompt = `
 We have a single client: 
@@ -39,48 +44,33 @@ Reply in JSON:
 
 Allowed industries:
 ${industries.join("\n")}
-`.trim();
+`;
 
   try {
-    const res = await axios.post(
-      OLLAMA_API_URL,
-      {
-        model: OLLAMA_MODEL,
-        prompt: prompt,
-        stream: false,
-        // Optional: Adjust these parameters based on your needs
-        temperature: 0.1, // Lower temperature for more deterministic outputs
-        num_predict: 200  // Limit token generation
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    const response = await openai.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: [
+        { role: "system", content: "You are a helpful assistant that classifies companies into industries. You ONLY respond with valid JSON." },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.1, // Lower temperature for more deterministic outputs
+      response_format: { type: "json_object" } // Enforce JSON response format
+    });
 
-    const responseText = res.data.response;
-    
-    // Extract JSON from the response - Ollama might return additional text
-    // Look for JSON pattern between curly braces
-    const jsonMatch = responseText.match(/\{[\s\S]*?\}/);
-    if (!jsonMatch) {
-      console.warn(`Failed to parse JSON from Ollama response for ${name}. Response: ${responseText}`);
-      // Fallback with a default response
-      return { industry: "Unknown", confidence: 0 };
-    }
+    const responseText = response.choices[0].message.content;
     
     try {
-      // Try to parse the matched JSON
-      return JSON.parse(jsonMatch[0]);
+      // Parse the JSON response
+      return JSON.parse(responseText);
     } catch (parseError) {
       console.warn(`JSON parse error for ${name}: ${parseError.message}`);
-      console.warn(`Raw JSON match: ${jsonMatch[0]}`);
+      console.warn(`Raw response: ${responseText}`);
       // Fallback with a default response
       return { industry: "Unknown", confidence: 0 };
     }
+    
   } catch (error) {
-    console.error(`Ollama API error for ${name}: ${error.message}`);
+    console.error(`OpenAI API error for ${name}: ${error.message}`);
     if (error.response) {
       console.error(`Status: ${error.response.status}, Data: ${JSON.stringify(error.response.data)}`);
     }
@@ -90,6 +80,17 @@ ${industries.join("\n")}
 }
 
 async function main() {
+  // Check for required environment variables
+  if (!process.env.OPENAI_API_KEY) {
+    console.error("Error: OPENAI_API_KEY environment variable is required");
+    process.exit(1);
+  }
+
+  if (!process.env.TAVILY_API_KEY) {
+    console.error("Error: TAVILY_API_KEY environment variable is required");
+    process.exit(1);
+  }
+
   // 1) load clients and industries CSVs
   //    clients.csv must have `id` and `name` columns
   const clients = await loadCsv("data/clients.csv");
@@ -110,7 +111,7 @@ async function main() {
     console.log(`→ Looking up ${name} (ID: ${id})…`);
     const lookupData = await tvly.search(name);
 
-    console.log(`→ Classifying ${name} using Ollama model ${OLLAMA_MODEL}…`);
+    console.log(`→ Classifying ${name} using OpenAI model ${OPENAI_MODEL}…`);
     const { industry, confidence } = await classifyCompany(name, lookupData, INDUSTRIES);
 
     output.push({ id, name, industry, confidence });
@@ -119,10 +120,10 @@ async function main() {
 
   // 2) write out new CSV, preserving id and name
   const csvOut = parse(output, {
-    fields: ["id", "name", "industry"]
+    fields: ["id", "name", "industry", "confidence"]
   });
-  fs.writeFileSync("classified_clients.csv", csvOut, "utf8");
-  console.log("✅ Written classified_clients.csv (with id, name, industry)");
+  fs.writeFileSync("./data/classified_clients.csv", csvOut, "utf8");
+  console.log("✅ Written classified_clients.csv (with id, name, industry, confidence)");
 }
 
 main().catch(err => {
